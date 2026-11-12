@@ -43,11 +43,16 @@ class UsageHistoryTest {
     }
 
     @Test
-    fun `logged sessions replace reconstructed ones for the same app`() {
-        val logged = listOf(UsageSession(A, 0, 5 * MIN, alertCount = 1))
-        val reconstructed = listOf(UsageSession(A, 0, 5 * MIN), UsageSession(B, 6 * MIN, 7 * MIN))
-        val merged = UsageHistory.merge(logged, reconstructed)
-        assertEquals(listOf(1, 0), merged.map { it.alertCount })
-        assertEquals(listOf(A, B), merged.map { it.packageName })
+    fun `logged sessions replace overlapping reconstructed ones`() {
+        val logged = listOf(UsageSession(A, 10 * MIN, 15 * MIN, alertCount = 1), UsageSession(A, 20 * MIN))
+        val reconstructed = listOf(
+            UsageSession(A, 0, 5 * MIN), // 監視していなかった間。残る
+            UsageSession(A, 10 * MIN, 15 * MIN), // 記録と重なる。捨てる
+            UsageSession(B, 16 * MIN, 17 * MIN), // 別のアプリ。残る
+            UsageSession(A, 20 * MIN), // 継続中の記録と重なる。捨てる
+        )
+        val merged = UsageHistory.merge(logged, reconstructed, nowMillis = 25 * MIN)
+        assertEquals(listOf(0L, 10 * MIN, 16 * MIN, 20 * MIN), merged.map { it.startMillis })
+        assertEquals(listOf(0, 1, 0, 0), merged.map { it.alertCount })
     }
 }

@@ -24,11 +24,14 @@ object UsageHistory {
     }
 
     /**
-     * 監視中に記録したセッションを優先して合わせる。記録があるアプリ (通知対象) は警告回数を
-     * 持っているので記録を使い、それ以外のアプリは組み立て直した結果を使う。
+     * 監視中に記録したセッション (警告回数を持つ) を優先して合わせる。
+     * 組み立て直したセッションのうち、同じアプリの記録と時間が重なるものは捨てる。
+     * 監視を止めていた間の使用は、組み立て直したものが残る。
      */
-    fun merge(logged: List<UsageSession>, reconstructed: List<UsageSession>): List<UsageSession> {
-        val loggedPackages = logged.map { it.packageName }.toSet()
-        return (logged + reconstructed.filterNot { it.packageName in loggedPackages }).sortedBy { it.startMillis }
+    fun merge(logged: List<UsageSession>, reconstructed: List<UsageSession>, nowMillis: Long): List<UsageSession> {
+        fun overlaps(a: UsageSession, b: UsageSession) =
+            a.packageName == b.packageName &&
+                a.startMillis < (b.endMillis ?: nowMillis) && b.startMillis < (a.endMillis ?: nowMillis)
+        return (logged + reconstructed.filterNot { r -> logged.any { overlaps(it, r) } }).sortedBy { it.startMillis }
     }
 }
