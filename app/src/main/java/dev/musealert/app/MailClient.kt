@@ -20,22 +20,41 @@ import javax.mail.search.SubjectTerm
  * 専用 Gmail とのやりとり。SMTP で自分宛てに送り、IMAP でリクエストを探す。
  * 認証は Google アカウントの「アプリパスワード」。ブロッキング処理なので IO スレッドで呼ぶ。
  */
-class MailClient(private val address: String, private val appPassword: String) {
+class MailClient(
+    private val address: String,
+    private val appPassword: String,
+    private val server: Server = Server.GMAIL,
+) {
 
     data class Request(val messageId: String, val subject: String)
 
+    /** 接続先。通常は Gmail。デバッグビルドではテスト用サーバーに差し替えられる。 */
+    data class Server(
+        val smtpHost: String,
+        val smtpPort: Int,
+        val imapHost: String,
+        val imapPort: Int,
+        val ssl: Boolean = true,
+    ) {
+        companion object {
+            val GMAIL = Server("smtp.gmail.com", 465, "imap.gmail.com", 993)
+        }
+    }
+
+    private val imapProtocol = if (server.ssl) "imaps" else "imap"
+
     private val session: Session = Session.getInstance(
         Properties().apply {
-            put("mail.smtp.host", "smtp.gmail.com")
-            put("mail.smtp.port", "465")
+            put("mail.smtp.host", server.smtpHost)
+            put("mail.smtp.port", server.smtpPort.toString())
             put("mail.smtp.auth", "true")
-            put("mail.smtp.ssl.enable", "true")
-            put("mail.imaps.host", "imap.gmail.com")
-            put("mail.imaps.port", "993")
+            put("mail.smtp.ssl.enable", server.ssl.toString())
+            put("mail.$imapProtocol.host", server.imapHost)
+            put("mail.$imapProtocol.port", server.imapPort.toString())
             put("mail.smtp.connectiontimeout", "15000")
             put("mail.smtp.timeout", "15000")
-            put("mail.imaps.connectiontimeout", "15000")
-            put("mail.imaps.timeout", "15000")
+            put("mail.$imapProtocol.connectiontimeout", "15000")
+            put("mail.$imapProtocol.timeout", "15000")
         },
     )
 
@@ -84,7 +103,7 @@ class MailClient(private val address: String, private val appPassword: String) {
     fun checkLogin() = withStore { }
 
     private fun <T> withStore(block: (Store) -> T): T {
-        val store = session.getStore("imaps")
+        val store = session.getStore(imapProtocol)
         store.connect(address, appPassword)
         try {
             return block(store)

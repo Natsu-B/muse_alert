@@ -189,7 +189,7 @@ class MainActivity : ComponentActivity() {
                     message = "ログインを確認中…"
                     scope.launch {
                         message = withContext(Dispatchers.IO) {
-                            runCatching { MailClient(settings.load().gmailAddress, settings.appPassword).checkLogin() }
+                            runCatching { settings.mailClient().checkLogin() }
                                 .fold({ "Gmail にログインできました" }, { "ログイン失敗: ${it.message}" })
                         }
                     }

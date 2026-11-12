@@ -89,6 +89,20 @@ class Settings(context: Context) {
             .apply()
     }
 
+    /**
+     * 接続先のメールサーバー。デバッグビルドに限り、prefs の debug_mail_server
+     * ("smtpHost:smtpPort:imapHost:imapPort"、平文) でテスト用サーバーに向けられる。
+     */
+    val mailServer: MailClient.Server
+        get() {
+            val override = prefs.getString("debug_mail_server", null)
+            if (!BuildConfig.DEBUG || override == null) return MailClient.Server.GMAIL
+            val (smtpHost, smtpPort, imapHost, imapPort) = override.split(':')
+            return MailClient.Server(smtpHost, smtpPort.toInt(), imapHost, imapPort.toInt(), ssl = false)
+        }
+
+    fun mailClient(config: Config = load()) = MailClient(config.gmailAddress, appPassword, mailServer)
+
     fun mailConfigured(config: Config = load()): Boolean =
         config.gmailAddress.isNotBlank() && appPassword.isNotBlank()
 

@@ -129,7 +129,7 @@ class UsageMonitorService : Service() {
     }
 
     private suspend fun checkMail() = mailMutex.withLock {
-        val client = MailClient(config.gmailAddress, settings.appPassword)
+        val client = settings.mailClient(config)
         try {
             val today = LocalDate.now(zone)
             val since = Date.from(today.minusDays(1).atStartOfDay(zone).toInstant())
@@ -166,7 +166,7 @@ class UsageMonitorService : Service() {
     private fun sendReport(
         date: LocalDate,
         inReplyTo: String?,
-        client: MailClient = MailClient(config.gmailAddress, settings.appPassword),
+        client: MailClient = settings.mailClient(config),
     ): Boolean {
         return try {
             val today = LocalDate.now(zone)
