@@ -12,7 +12,7 @@ import java.time.ZoneId
  * 日付はセッションの開始時刻で決める。
  */
 class SessionLog(context: Context, private val zone: ZoneId = ZoneId.systemDefault()) {
-    private val dir = File(context.filesDir, "sessions").apply { mkdirs() }
+    private val dir = File(context.filesDir, "sessions")
 
     @Synchronized
     fun append(session: UsageSession) {
@@ -20,6 +20,7 @@ class SessionLog(context: Context, private val zone: ZoneId = ZoneId.systemDefau
         val file = fileFor(dateOf(session))
         // サービスを止めたときに継続中のセッションを書き、再起動後に読み直した同じセッションがまた来る。
         // 開始時刻とパッケージが同じなら、終了時刻の遅いほうで置き換える。
+        dir.mkdirs()
         val existing = read(file)
         val same = existing.firstOrNull { it.packageName == session.packageName && it.startMillis == session.startMillis }
         if (same == null) {
