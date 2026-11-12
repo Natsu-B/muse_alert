@@ -9,6 +9,14 @@ import android.provider.Settings as SystemSettings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -70,9 +78,11 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun SettingsScreen() {
         val initial = remember { settings.load() }
-        var targets by remember { mutableStateOf(initial.targetPackages.joinToString(", ")) }
-        var threshold by remember { mutableStateOf(initial.thresholdMinutes.toString()) }
-        var repeat by remember { mutableStateOf(initial.repeatMinutes.toString()) }
+        val labels = remember { AppLabels(this@MainActivity) }
+        val targets = remember {
+            mutableStateListOf(*initial.targets.map { TargetRow(it.packageName, labels.label(it.packageName), it.thresholdMinutes.toString(), it.repeatMinutes.toString()) }.toTypedArray())
+        }
+        var picking by remember { mutableStateOf(false) }
         var grace by remember { mutableStateOf(initial.graceSeconds.toString()) }
         var windowStart by remember { mutableStateOf(initial.windowStart.toString()) }
         var windowEnd by remember { mutableStateOf(initial.windowEnd.toString()) }
@@ -84,9 +94,9 @@ class MainActivity : ComponentActivity() {
 
         fun parse(): Config? = try {
             Config(
-                targetPackages = targets.split(',', ' ', '\n').map { it.trim() }.filter { it.isNotEmpty() }.toSet(),
-                thresholdMinutes = threshold.toInt().coerceAtLeast(1),
-                repeatMinutes = repeat.toInt().coerceAtLeast(0),
+                targets = targets.map {
+                    TargetApp(it.packageName, it.threshold.toInt().coerceAtLeast(1), it.repeat.toInt().coerceAtLeast(0))
+                },
                 graceSeconds = grace.toInt().coerceAtLeast(0),
                 windowStart = LocalTime.parse(windowStart),
                 windowEnd = LocalTime.parse(windowEnd),
@@ -145,11 +155,35 @@ class MainActivity : ComponentActivity() {
             }
 
             Section("監視")
-            Field("対象パッケージ（カンマ区切り）", targets) { targets = it }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                NumberField("通知開始（分）", threshold, Modifier.weight(1f)) { threshold = it }
-                NumberField("再通知（分, 0で無し）", repeat, Modifier.weight(1f)) { repeat = it }
+            Text("通知するアプリ", style = MaterialTheme.typography.titleSmall)
+            targets.forEachIndexed { index, row ->
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(row.label)
+                            Text(row.packageName, style = MaterialTheme.typography.bodySmall)
+                        }
+                        TextButton(onClick = { targets.removeAt(index) }) { Text("削除") }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        NumberField("通知開始（分）", row.threshold, Modifier.weight(1f)) { targets[index] = row.copy(threshold = it) }
+                        NumberField("再通知（分, 0で無し）", row.repeat, Modifier.weight(1f)) { targets[index] = row.copy(repeat = it) }
+                    }
+                }
             }
+            OutlinedButton(onClick = { picking = true }) { Text("アプリを追加") }
+            if (picking) {
+                AppPicker(
+                    apps = remember { labels.launchable() },
+                    exclude = targets.map { it.packageName }.toSet(),
+                    onPick = { pkg, label ->
+                        targets += TargetRow(pkg, label, "5", "5")
+                        picking = false
+                    },
+                    onDismiss = { picking = false },
+                )
+            }
+            Text("レポートには、通知するアプリ以外も含めて、その日に使ったすべてのアプリが入ります。", style = MaterialTheme.typography.bodySmall)
             NumberField("離脱の猶予（秒）", grace) { grace = it }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Field("通知する時間帯 開始", windowStart, Modifier.weight(1f)) { windowStart = it }
@@ -167,7 +201,8 @@ class MainActivity : ComponentActivity() {
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            NumberField("リクエスト確認間隔（分）", mailCheck) { mailCheck = it }
+            NumberField("画面 ON 時のリクエスト確認間隔（分）", mailCheck) { mailCheck = it }
+            Text("画面 OFF の間は、電池を節約するため 15 分ごと（OS がまとめて実行）に確認します。", style = MaterialTheme.typography.bodySmall)
             Text("最終結果: " + settings.lastMailStatus.ifEmpty { "なし" }, style = MaterialTheme.typography.bodySmall)
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
@@ -199,7 +234,7 @@ class MainActivity : ComponentActivity() {
             OutlinedButton(
                 onClick = {
                     if (!save()) return@OutlinedButton
-                    UsageMonitorService.sendToday(this@MainActivity)
+                    MailSync.runNow(this@MainActivity, sendToday = true)
                     message = "今日の履歴を送信しています（結果は「最終結果」に出ます）"
                 },
                 enabled = settings.mailConfigured(),
@@ -207,6 +242,51 @@ class MainActivity : ComponentActivity() {
             ) { Text("今日の履歴を専用 Gmail に送信") }
             if (message.isNotEmpty()) Text(message, color = MaterialTheme.colorScheme.primary)
         }
+    }
+
+    private data class TargetRow(val packageName: String, val label: String, val threshold: String, val repeat: String)
+
+    @Composable
+    private fun AppPicker(
+        apps: List<Pair<String, String>>,
+        exclude: Set<String>,
+        onPick: (String, String) -> Unit,
+        onDismiss: () -> Unit,
+    ) {
+        var query by remember { mutableStateOf("") }
+        val shown = apps.filter { (pkg, label) ->
+            pkg !in exclude && (query.isBlank() || label.contains(query, ignoreCase = true) || pkg.contains(query, ignoreCase = true))
+        }
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = onDismiss) { Text("閉じる") } },
+            title = { Text("アプリを追加") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        label = { Text("検索") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    LazyColumn(Modifier.heightIn(max = 400.dp)) {
+                        items(shown, key = { it.first }) { (pkg, label) ->
+                            Column(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onPick(pkg, label) }
+                                    .padding(vertical = 8.dp),
+                            ) {
+                                Text(label)
+                                Text(pkg, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+            },
+        )
     }
 
     @Composable

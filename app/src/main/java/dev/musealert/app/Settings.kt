@@ -14,22 +14,34 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-data class Config(
-    val targetPackages: Set<String> = setOf("com.google.android.youtube"),
+/** 通知対象のアプリと、そのアプリの通知タイミング。 */
+data class TargetApp(
+    val packageName: String,
     val thresholdMinutes: Int = 5,
+    /** 0 なら再通知しない。 */
     val repeatMinutes: Int = 5,
+)
+
+data class Config(
+    val targets: List<TargetApp> = listOf(TargetApp("com.google.android.youtube")),
     val graceSeconds: Int = 60,
     val windowStart: LocalTime = LocalTime.MIDNIGHT,
     val windowEnd: LocalTime = LocalTime.MIDNIGHT,
     val gmailAddress: String = "",
     val mailCheckMinutes: Int = 5,
 ) {
-    val policy: AlertPolicy
-        get() = AlertPolicy(
-            thresholdMillis = thresholdMinutes * 60_000L,
-            repeatMillis = repeatMinutes * 60_000L,
+    val targetPackages: Set<String>
+        get() = targets.map { it.packageName }.toSet()
+
+    fun target(packageName: String): TargetApp? = targets.firstOrNull { it.packageName == packageName }
+
+    fun policyFor(packageName: String): AlertPolicy? = target(packageName)?.let {
+        AlertPolicy(
+            thresholdMillis = it.thresholdMinutes * 60_000L,
+            repeatMillis = it.repeatMinutes * 60_000L,
             window = TimeWindow(windowStart, windowEnd),
         )
+    }
 }
 
 /** 設定と、サービスが覚えておく小さな状態。 */
@@ -37,9 +49,7 @@ class Settings(context: Context) {
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
     fun load(): Config = Config(
-        targetPackages = prefs.getStringSet("targets", null) ?: Config().targetPackages,
-        thresholdMinutes = prefs.getInt("threshold", 5),
-        repeatMinutes = prefs.getInt("repeat", 5),
+        targets = loadTargets(),
         graceSeconds = prefs.getInt("grace", 60),
         windowStart = LocalTime.parse(prefs.getString("window_start", "00:00")),
         windowEnd = LocalTime.parse(prefs.getString("window_end", "00:00")),
@@ -49,15 +59,26 @@ class Settings(context: Context) {
 
     fun save(config: Config) {
         prefs.edit()
-            .putStringSet("targets", config.targetPackages)
-            .putInt("threshold", config.thresholdMinutes)
-            .putInt("repeat", config.repeatMinutes)
+            .putString("target_apps", config.targets.joinToString("\n") { "${it.packageName}\t${it.thresholdMinutes}\t${it.repeatMinutes}" })
             .putInt("grace", config.graceSeconds)
             .putString("window_start", config.windowStart.toString())
             .putString("window_end", config.windowEnd.toString())
             .putString("gmail", config.gmailAddress)
             .putInt("mail_check", config.mailCheckMinutes)
             .apply()
+    }
+
+    /** 1 行に「パッケージ名 TAB 通知開始 TAB 再通知」。古い形式 (全アプリ共通の設定) も読む。 */
+    private fun loadTargets(): List<TargetApp> {
+        val lines = prefs.getString("target_apps", null)
+        if (lines != null) {
+            return lines.split('\n').filter { it.isNotBlank() }.map { line ->
+                val (pkg, threshold, repeat) = line.split('\t')
+                TargetApp(pkg, threshold.toInt(), repeat.toInt())
+            }
+        }
+        val legacy = prefs.getStringSet("targets", null) ?: return Config().targets
+        return legacy.sorted().map { TargetApp(it, prefs.getInt("threshold", 5), prefs.getInt("repeat", 5)) }
     }
 
     var appPassword: String
@@ -76,6 +97,11 @@ class Settings(context: Context) {
     var lastMailStatus: String
         get() = prefs.getString("mail_status", "")!!
         set(value) = prefs.edit().putString("mail_status", value).apply()
+
+    /** 最後にメールを確認した時刻。画面 ON のたびに確認しすぎないために使う。 */
+    var lastMailCheckMillis: Long
+        get() = prefs.getLong("last_mail_check", 0)
+        set(value) = prefs.edit().putLong("last_mail_check", value).apply()
 
     fun isProcessed(messageId: String): Boolean =
         messageId in prefs.getStringSet("processed", emptySet())!!
