@@ -7,3 +7,4 @@ local.properties
 sdk-install.log
 emu-install.log
 .kotlin/
+e2e.log
