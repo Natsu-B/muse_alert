@@ -29,9 +29,12 @@ data class UsageSession(
  * Android API にも時計にも依存しないので、イベント列を与えるだけでテストできる。
  */
 class SessionTracker(
-    private val targetPackages: Set<String>,
+    private val isTarget: (String) -> Boolean,
     private val gracePeriodMillis: Long,
 ) {
+    constructor(targetPackages: Set<String>, gracePeriodMillis: Long) :
+        this({ it in targetPackages }, gracePeriodMillis)
+
     var active: UsageSession? = null
         private set
 
@@ -50,7 +53,7 @@ class SessionTracker(
         when (event.type) {
             UsageEvent.Type.RESUMED -> when {
                 current != null && event.packageName == current.packageName -> awaySinceMillis = null
-                event.packageName in targetPackages -> {
+                isTarget(event.packageName) -> {
                     if (current != null) finish(awaySinceMillis ?: event.timeMillis)
                     active = UsageSession(event.packageName, event.timeMillis)
                     alertsConsumed = 0

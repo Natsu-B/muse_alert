@@ -45,6 +45,13 @@ class AlertPolicyTest {
     }
 
     @Test
+    fun `next alert time`() {
+        assertEquals(5 * MIN, policy.nextAlertAtMillis(0, 0))
+        assertEquals(10 * MIN, policy.nextAlertAtMillis(0, 1))
+        assertEquals(null, policy.copy(repeatMillis = 0).nextAlertAtMillis(0, 1))
+    }
+
+    @Test
     fun `daytime window`() {
         val day = TimeWindow(LocalTime.of(9, 0), LocalTime.of(18, 0))
         assertTrue(LocalTime.of(9, 0) in day)

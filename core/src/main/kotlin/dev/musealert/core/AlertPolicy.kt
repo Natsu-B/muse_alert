@@ -33,6 +33,13 @@ data class AlertPolicy(
         else -> 1 + ((elapsedMillis - thresholdMillis) / repeatMillis).toInt()
     }
 
+    /** 次の警告を出す時刻。再通知しない設定で、もう警告済みなら null。 */
+    fun nextAlertAtMillis(startMillis: Long, alertsConsumed: Int): Long? = when {
+        alertsConsumed == 0 -> startMillis + thresholdMillis
+        repeatMillis <= 0 -> null
+        else -> startMillis + thresholdMillis + alertsConsumed * repeatMillis
+    }
+
     /** 新しく警告を出すべきか。時間帯の外では出さない。 */
     fun shouldAlert(elapsedMillis: Long, alertsConsumed: Int, localTime: LocalTime): Boolean =
         localTime in window && alertsDue(elapsedMillis) > alertsConsumed
