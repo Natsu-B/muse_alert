@@ -15,7 +15,12 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v6
-      - run: ./gradlew :core:test :app:lintDebug :app:assembleDebug
+      - run: ./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+      # 試すとき用。CI ごとに署名鍵が変わるので、上書きインストールはできない (配布は Releases を使う)。
+      - uses: actions/upload-artifact@v7
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
       - if: always()
         uses: actions/upload-artifact@v7
         with:
