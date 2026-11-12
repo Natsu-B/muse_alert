@@ -89,6 +89,25 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 動作確認するときは、通知開始を 1 分、猶予を 10 秒程度にすると早く確かめられます。
 
+## テスト
+
+| 種類 | 場所 | 内容 |
+| --- | --- | --- |
+| 単体テスト | `core/src/test` | 連続使用の判定、通知タイミング、レポート本文、リクエスト件名 |
+| E2E テスト | `app/src/androidTest` | エミュレーター上で監視サービスを動かし、設定アプリの使用を検知する。テスト用メールサーバーを相手に、リクエストへの返信・日次レポート・なりすましの拒否を確かめる |
+
+E2E テストは、ホストで次の 2 つを動かしてから実行します。
+
+```sh
+tools/fakemail/run.sh /tmp/fakemail   # IMAP (Dovecot) :1143 と SMTP :2525。Gmail と同じく送信メールを INBOX と Sent の両方に入れる
+tools/emulator.sh                     # Android 16 (API 36) のヘッドレスエミュレーター
+./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.fakemail=true
+```
+
+`fakemail=true` を付けないと、メールの E2E テストはスキップされます。テスト用メールサーバーへの切り替え（prefs の `debug_mail_server`）は、デバッグビルドでだけ効きます。
+
+GitHub Actions (`.github/workflows/ci.yml`) は push と PR のたびに両方を実行します。
+
 ## 既知の制約
 
 - 計測しているのは「前面に表示されていた時間」で、操作していた時間ではない。
