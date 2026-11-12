@@ -35,7 +35,7 @@ class MonitorE2ETest {
         Device.grantPermissions()
         Device.wake()
         Device.goHome()
-        settings.save(Config(targetPackages = setOf(TARGET), thresholdMinutes = 1, repeatMinutes = 1, graceSeconds = 10))
+        settings.save(Config(targets = listOf(TargetApp(TARGET, thresholdMinutes = 1, repeatMinutes = 1)), graceSeconds = 10))
     }
 
     @After
@@ -61,7 +61,8 @@ class MonitorE2ETest {
         val screenOff = System.currentTimeMillis()
         Device.wake()
 
-        waitUntil(80_000, "画面 OFF でセッションが記録される") { sessions().isNotEmpty() }
+        // 画面 OFF はブロードキャストで受けるので、すぐに記録される。
+        waitUntil(10_000, "画面 OFF でセッションが記録される") { sessions().isNotEmpty() }
         val session = sessions().single()
         assertEquals(TARGET, session.packageName)
         assertNear("開始時刻", opened, session.startMillis, 5_000)
@@ -86,7 +87,8 @@ class MonitorE2ETest {
         // 猶予より長い離脱。離れた時刻でセッションが終わる。
         Device.goHome()
         val left = System.currentTimeMillis()
-        waitUntil(40_000, "離脱でセッションが記録される") { sessions().isNotEmpty() }
+        // 電力を抑えるため、画面 ON 中のポーリングは 60 秒ごと。離脱に気づくのは最大でその分遅れる。
+        waitUntil(90_000, "離脱でセッションが記録される") { sessions().isNotEmpty() }
 
         val session = sessions().single()
         assertNear("開始時刻（短い離脱でリセットされない）", opened, session.startMillis, 5_000)

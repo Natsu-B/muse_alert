@@ -57,7 +57,7 @@ class MailE2ETest {
         Device.wake()
         clearMailbox()
 
-        settings.save(Config(targetPackages = setOf(TARGET), gmailAddress = ADDRESS, mailCheckMinutes = 1))
+        settings.save(Config(targets = listOf(TargetApp(TARGET)), gmailAddress = ADDRESS, mailCheckMinutes = 1))
         settings.appPassword = PASSWORD
         settings.lastDigestDate = today.minusDays(3)
         context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit()
@@ -89,6 +89,13 @@ class MailE2ETest {
         assertEquals("[usage-report] $today (途中経過)", partial.subject)
         assertTrue(partial.body, partial.body.contains("- 08:00〜08:07 $label 7分（警告 1回）"))
         assertTrue(partial.body, partial.body.contains("session: package=$TARGET start=${today}T08:00:00"))
+
+        // 通知対象でないアプリ (このアプリ自身。テストで画面を開いている) も入る。ランチャーは入らない。
+        assertTrue(partial.body, partial.body.contains("app: package=${context.packageName} target=false"))
+        assertTrue(partial.body, partial.body.contains("app: package=$TARGET target=true"))
+        val launchers = AppLabels(context).launchers()
+        assertTrue("既定のランチャーが見つかる: $launchers", launchers.isNotEmpty() && TARGET !in launchers)
+        launchers.forEach { assertTrue("ランチャー $it は入らない", !partial.body.contains("package=$it ")) }
 
         val dated = reports.single { it.inReplyTo == datedRequest }
         assertEquals("[usage-report] $yesterday", dated.subject)
