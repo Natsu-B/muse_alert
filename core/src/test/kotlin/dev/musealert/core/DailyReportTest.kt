@@ -20,7 +20,7 @@ class DailyReportTest {
             UsageSession(YT, at(22, 10).toEpochMilli(), at(22, 28).toEpochMilli(), alertCount = 2),
             UsageSession(YT, at(23, 1).toEpochMilli()),
         )
-        val report = DailyReport(date, sessions, mapOf(YT to "YouTube"), at(23, 7), zone)
+        val report = DailyReport(date, sessions, mapOf(YT to "YouTube"), at(23, 7).plusMillis(301), zone)
 
         assertEquals("[usage-report] 2026-11-12 (途中経過)", report.subject(partial = true))
         val body = report.body()
@@ -29,6 +29,7 @@ class DailyReportTest {
         assertTrue(body, body.contains("- 23:01〜（継続中） YouTube 6分（警告 0回）"))
         assertTrue(body, body.contains("session: package=$YT start=2026-11-12T22:10:00+09:00 end=2026-11-12T22:28:00+09:00 seconds=1080 alerts=2"))
         assertTrue(body, body.contains("end=ongoing seconds=360"))
+        assertTrue("時刻は秒まで", body.contains("generated_at: 2026-11-12T23:07:00+09:00\n"))
     }
 
     @Test

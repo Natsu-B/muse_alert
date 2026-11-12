@@ -5,6 +5,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 
 /**
  * 1 日分の利用履歴をメール本文にする。
@@ -65,7 +66,7 @@ class DailyReport(
     private fun clock(instant: Instant) = instant.atZone(zone).format(CLOCK)
 
     private fun iso(instant: Instant) =
-        ZonedDateTime.ofInstant(instant, zone).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        ZonedDateTime.ofInstant(instant.truncatedTo(ChronoUnit.SECONDS), zone).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
 
     companion object {
         const val SUBJECT_TAG = "[usage-report]"
