@@ -1,6 +1,6 @@
 # セキュリティ暫定措置台帳
 
-## Android EmulatorシェルのExpat修正（2026-11-21、Draft PR：作成後追記）
+## Android EmulatorシェルのExpat修正（2026-11-21、[Draft PR #2](https://github.com/Natsu-B/muse_alert/pull/2)）
 
 - **適用状態:** PRがdefault branchにマージされるまで未適用。Androidアプリ本体の依存を更新したものではない。
 - **変更前:** `flake.lock`のnixpkgs `177d0540942fb205af6993b1d5fa0b57799e09f8`で`pkgs.expat`は2.9.0。`flake.nix`の`devShells.x86_64-linux.emulator.NIX_LD_LIBRARY_PATH`にその`expat`を含める。
