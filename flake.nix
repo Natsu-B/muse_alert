@@ -15,7 +15,10 @@
           url = "https://github.com/libexpat/libexpat/releases/download/R_2_10_0/expat-2.10.0.tar.xz";
           hash = "sha256-xiS6KZj8Zd8RY6SWQf8/mrcxOLEWQdkshr7g+wGxvH8=";
         };
-        patches = (old.patches or [ ]) ++ [ ./patches/expat-cve-2026-124317.patch ];
+        patches = (old.patches or [ ]) ++ [
+          ./patches/expat-cve-2026-124317.patch
+          ./patches/expat-cve-2026-134703.patch
+        ];
       });
     in {
       # テスト用メールサーバー (tools/fakemail) を動かす環境。
