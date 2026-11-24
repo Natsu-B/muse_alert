@@ -49,6 +49,9 @@ class MailClient(
             put("mail.smtp.port", server.smtpPort.toString())
             put("mail.smtp.auth", "true")
             put("mail.smtp.ssl.enable", server.ssl.toString())
+            // TLS must authenticate the expected host, not just a trusted certificate chain.
+            put("mail.smtp.ssl.checkserveridentity", "true")
+            put("mail.$imapProtocol.ssl.checkserveridentity", "true")
             put("mail.$imapProtocol.host", server.imapHost)
             put("mail.$imapProtocol.port", server.imapPort.toString())
             put("mail.smtp.connectiontimeout", "15000")
